@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<head>
+	<link rel="stylesheet" href="css/bootstrap.min.css">
+	<link rel="stylesheet" href="css/bootstrap-theme.min.css">
+	<script src="js/bootstrap.min.js"></script>
+	<meta charset="utf-8">
+<style>
+
+
+#chart {
+  width: 100%; 
+  height: 90%; 
+  background-color: #444;
+  overflow:scroll;
+}
+
+.node rect {
+  cursor: move;
+  fill-opacity: .9;
+  shape-rendering: crispEdges;
+}
+
+.node text {
+   fill: #ddd;
+   font-size:12px;
+   stroke: none;
+     text-shadow: 0 2px 0 #222;
+}
+
+.link {
+  fill: none;
+  stroke-opacity: .75;
+}
+
+.link:hover {
+  stroke-opacity: 1.0;
+}
+#headerRow{
+padding: 5px;
+background-color: #f8f8f8;
+border-color: #e7e7e7;
+}
+
+</style>
+</head>
+<body>
+
+<div class="row" id="headerRow">
+	<div class="col-md-9">
+		<form class="form-inline" id="my-form">
+		  <div class="form-group">
+			<label for="indexBox">Index</label>
+			<input class="form-control" id="indexBox" placeholder="Enter indexname" value="mylogs">
+		  </div>
+		  <div class="form-group">
+			<label for="indexBox">Num Results</label>
+			  <select class="form-control" id="numResults">
+				  <option>10</option>
+				  <option selected>50</option>
+				  <option>100</option>
+				  <option>150</option>
+				</select>
+		  </div>
+		  
+		  <div class="form-group">
+			<label for="searchBox">Query</label>
+			<input type="search" size="60" class="form-control" id="searchBox" value="status:[400 TO 599]">
+		  </div>
+		  
+		  <button type="submit" class="btn btn-default">Search</button>
+		</form>
+		<div id="loadingAlert" class="alert alert-success" role="alert">Loading...</div>
+	</div>
+
+</div>
+
+<p id="chart">
+<script src="js/d3.min.js"></script>
+<script type="text/javascript" src="js/jquery-1.9.1.min.js"></script>
+<script src="js/sankey.js"></script>
+<script>
+
+
+		function blockScroll () {
+			d3.event.preventDefault()
+		};
+
+	    function handleZoom() {
+			    window.svg
+			      .attr("transform",
+			        "translate(" + d3.event.translate + ")"
+			        + "scale(" + d3.event.scale + ")")
+			      .attr('style', 'stroke-width: ' + 1/d3.event.scale);
+		  }
+		  
+		function processForm(e) {
+			if (e.preventDefault) e.preventDefault();
+			//Clear display area			
+			var myNode = document.getElementById("chart");
+			while (myNode.firstChild) {
+				myNode.removeChild(myNode.firstChild);
+			}			
+			$("#loadingAlert").show();
+			
+			runQuery(document.getElementById('indexBox').value,
+					 document.getElementById('searchBox').value,
+					 parseInt(document.getElementById('numResults').value)
+					 
+					 );
+			// Return false to prevent the default form behavior
+			return false;
+		}		  
+
+		function renderGraph(params)
+		{
+				window.graph=params;
+				var width=window.innerWidth-30;
+				var height=window.innerHeight-30;
+				var sankey = d3.sankey()
+						.size([width, height])
+						.nodeWidth(15)
+						.nodePadding(10)
+						.nodes(params.nodes)
+						.links(params.links)
+						.layout(32);
+				var path = sankey.link();
+				
+				var margin = {top: 1, right: 1, bottom: 6, left: 1},
+					width = width - margin.left - margin.right,
+					height = height - margin.top - margin.bottom;
+
+				var formatNumber = d3.format(",.0f"),
+					format = function(d) { return formatNumber(d); },
+					color = d3.scale.category20();
+
+				svg = d3.select("#chart")
+					.on("mousewheel", blockScroll)
+					.on("DOMMouseScroll", blockScroll)
+
+					.append("svg")
+					.attr("width", width + margin.left + margin.right)
+					.attr("height", height + margin.top + margin.bottom)
+
+					//MH see https://groups.google.com/forum/#!msg/d3-js/Sh4ysLFBMRQ/hHjzBP0bX1oJ
+                    .attr('xmlns:xmlns:xlink', 'http://www.w3.org/1999/xlink') // hack: doubling xmlns: so it doesn't disappear once in the DOM					
+                    .attr("pointer-events", "all") 
+					.call(d3.behavior.zoom().on("zoom", handleZoom)) 
+				  .append("g")
+					.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+				  sankey
+					  .nodes(params.nodes)
+					  .links(params.links)
+					  .layout(64);
+
+				  var link = svg.append("g").selectAll(".link")
+					  .data(params.links)
+					.enter().append("path")
+					  .attr("class", "link")
+					  .attr("d", path)
+					  .style("stroke", function(d) { return d.color?d.color:'#fff'; })
+					  .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+					  .sort(function(a, b) { return b.dy - a.dy; });
+
+				  link.append("title")
+					  .text(function(d) { if(d.title) return d.title; return d.source.name + " → " + d.target.name + "\n" + format(d.value); });
+
+				  var node = svg.append("g").selectAll(".node")
+					  .data(params.nodes)
+					.enter().append("g")
+					  .attr("class", "node")
+					  .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+					.call(d3.behavior.drag()
+					  .origin(function(d) { return d; })
+					  .on("dragstart", function() { this.parentNode.appendChild(this); })
+					  .on("drag", dragmove));
+
+				  node.append("rect")
+					  .attr("height", function(d) { return d.dy; })
+					  .attr("width", sankey.nodeWidth())
+					  .style("fill", function(d) { return '#777'; })
+					  .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+					.append("title")
+					  .text(function(d) { return d.name + "\n" + format(d.value); });
+
+				  node.append("a")
+				  	.attr("xlink:xlink:href",function(d){return d.url} )
+				  	.attr("target","_new" )
+				     .append("text")
+					  .attr("x", -6)
+					  
+					  .attr("y", function(d) { return d.dy / 2; })
+					  .attr("dy", ".35em")
+					  .attr("text-anchor", "end")
+					  .attr("transform", null)
+					  .text(function(d) { return d.name; })
+					.filter(function(d) { return d.x < width / 2; })
+					  .attr("x", 6 + sankey.nodeWidth())
+					  .attr("text-anchor", "start");
+
+				  function dragmove(d) {
+					d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))) + ")");
+					sankey.relayout();
+					link.attr("d", path);
+				  }
+		}
+		
+		// Initialize form
+		var form = document.getElementById('my-form');
+		if (form.attachEvent) {
+			form.attachEvent("submit", processForm);
+		} else {
+			form.addEventListener("submit", processForm);
+		}
+		$(".alert").hide();		
+		
+		
+		function verifyStats(sigTerms, qString, indexName){
+			// Run query to get full stats for significant IPS/subnets to
+			// include background information from shards that may not have
+			// matched any of the original query
+			var filters= {};
+			var sigTermsByKey= {};
+			for(s in sigTerms){
+				var sigTerm=sigTerms[s];
+				var ip=sigTerm.key;
+				sigTermsByKey[ip]=sigTerm;
+				filters[ip]={ "term" : { "remote_host.subs" : ip   }};
+			}		
+			var statsQuery={
+				"aggs": {
+		
+					"ips" : {
+							  "filters" : {
+								"filters" : filters
+							  },
+						"aggs": {
+							"badTraffic": {
+								"filter": {
+									"query":{"query_string": {
+										"query": qString
+									}}
+								}
+							},
+							"uniqueIps": {
+								"cardinality": {
+//									"field": "remote_host_l3"
+									"field":"remote_host"
+								}
+							}
+						}
+					}
+				}
+			};	
+		
+//			queryJson=JSON.stringify(statsQuery);			    
+			$.ajax
+						({
+							type: "POST",
+						url: '/'+indexName+'/_search?search_type=count',
+							dataType: 'json',
+							async: true,
+							data: JSON.stringify(statsQuery),
+							success: function (data) {
+								for (ip in data.aggregations.ips.buckets){
+									var termStats=data.aggregations.ips.buckets[ip];
+									var sigTerm=sigTermsByKey[ip];
+									sigTerm.badCount=termStats.badTraffic.doc_count;
+									sigTerm.allCount=termStats.doc_count;
+									sigTerm.numIps=termStats.uniqueIps.value;
+								}
+								showResults(sigTerms);
+							},
+							error:function(jqXHRm,textStatus,errorThrown)
+							{
+								alert("Error:"+JSON.stringify(jqXHRm, null, "\t"));
+							}
+						});				    				    
+		}
+		
+	function showResults(sigTerms){
+		$(".alert").hide();		
+		var nodes=sigTerms;
+		var edges =[];
+		var ips =[];
+		for(var i=0;i<nodes.length;i++)
+		{
+			var n=nodes[i];
+			var ip=n.key;
+			var url=null;
+			var name=ip;
+			if(ip.split(".").length==4){
+				//Provide drill-down capabilities for details of badly behaved IP addresses
+				url="https://www.projecthoneypot.org/ip_"+ip;
+			}else{
+				if(n.numIps){
+					name+=" ("+n.numIps+" IP"+(n.numIps>1?"s":"")+")";
+				}
+			}
+			ips.push({"name":name ,"ip":ip, "nid":i, "url":url, "fg":n.badCount,"bg":n.allCount});
+		}
+		for(i in ips)
+		{
+			var n1=ips[i];
+			for(var j in ips){
+				var other=ips[j];
+				if(i!=j){
+					if(n1.ip.indexOf(other.ip+".")===0){
+						if((!n1.parent)||(other.ip.length>n1.parent.ip.length)){
+							n1.parent=other;
+						}
+					}
+				}
+			}
+		}
+		for(i in ips)
+		{
+			var n=ips[i];
+			var parentId=n.parent ? n.parent.nid: ips.length;
+			var badness=n.fg/n.bg;
+			var pcLabel=(parseInt(badness*100))+"% bad ("+n.fg+"/"+n.bg+")";
+			var redMagnify=1.5;
+			var redness=Math.min(1, badness*redMagnify);
+			var red=parseInt(255*(redness));
+			var green=255-red;//Mix in approproate level of green
+			var color="rgb("+red+","+green+",0)"; 
+			edges.push({"source":n.nid,"target":parentId,"value":n.fg,
+					"title":pcLabel, "color":color});
+		}
+
+		//Set up last node as the endpoint
+		ips.push({"name":"My website", "nid":ips.length});
+		var graph= { "nodes":ips, "links":edges};
+		
+		renderGraph(graph)
+	}
+		
+	function runQuery(indexName, qString, numResults){		
+		//Run query to spot badly behaved IPS/subnets		
+		var queryJson=JSON.stringify({
+					"query":{
+						"query_string":{
+							"query":qString
+						}
+					},
+				   "aggs": {
+					  "sigIps": {
+						 "significant_terms": {
+							"field":"remote_host.subs",									
+							"size":numResults,
+							// Use this setting to limit the network traffic back from each shard
+							"shard_size":50000,
+							// Use this setting to limit the network traffic back from each shard,
+							// but raising it may set the quality bar too high on each shard and a
+							// global reducer will not be able to piece together
+							"shard_min_doc_count":1,
+							// Use this setting to limit the catch to bigger fish
+// 							"min_doc_count":50,
+							// This is the best scoring heuristic for this task 
+							// as it helps us spot risk at popular subnets.
+							// See https://twitter.com/elasticmark/status/513320986956292096
+							// for visualization of valued hot-spots in the popularity space.
+							"gnd":{}
+						 }
+					  }
+				   }
+				});
+
+		$.ajax
+		({
+			type: "POST",
+			url: '/'+indexName+'/_search?search_type=count',
+			dataType: 'json',
+			async: true,
+			data: queryJson,
+			success: function (data) {
+				verifyStats(data.aggregations.sigIps.buckets, qString, indexName);
+			},
+			error:function(jqXHRm,textStatus,errorThrown)
+			{
+				alert("Error:"+JSON.stringify(jqXHRm, null, "\t"));
+			}
+		});
+	}
+</script>
+
+</body>
+</html>
