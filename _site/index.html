@@ -221,13 +221,18 @@ border-color: #e7e7e7;
 			// matched any of the original query
 			var filters= {};
 			var sigTermsByKey= {};
+			var qTerms=[];
 			for(s in sigTerms){
 				var sigTerm=sigTerms[s];
 				var ip=sigTerm.key;
 				sigTermsByKey[ip]=sigTerm;
+				qTerms.push(ip);
 				filters[ip]={ "term" : { "remote_host.subs" : ip   }};
 			}		
 			var statsQuery={
+				"query":{
+					"terms":{"remote_host.subs":qTerms}
+				},
 				"aggs": {
 		
 					"ips" : {
@@ -244,7 +249,6 @@ border-color: #e7e7e7;
 							},
 							"uniqueIps": {
 								"cardinality": {
-//									"field": "remote_host_l3"
 									"field":"remote_host"
 								}
 							}
