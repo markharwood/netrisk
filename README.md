@@ -20,7 +20,7 @@ Note that IP addresses are indexed with individual tokens for each subnet which 
 
 ## Use
 Once your index/indices are prepared open the tool using the URL http://localhost:9200/_plugin/netrisk/
-Enter your choice of index names (commas and wildcards permitted, no spaces) and enter a Lucene query that vaguely represents "risky" behaviour. This might be HTTP response codes in the range 400 to 599 or requests with no User Agent specified. You don't need to be exact with the choice of query - we're are just looking for IPs or subnets that have more of a leaning to this behaviour than the standard well-behaved traffic with 200 status response codes. The query is executed and, all being well a diagram like the one above should appear.
+Enter your choice of index names (commas and wildcards permitted, no spaces) and enter a Lucene query that vaguely represents "risky" behaviour. This might be HTTP response codes not in the normal range of 200 to 304 or requests with no User Agent specified. You don't need to be exact with the choice of query - we're are just looking for IPs or subnets that have more of a leaning to this behaviour than the standard well-behaved traffic with 200 status response codes. The query is executed and, all being well a diagram like the one above should appear.
 Use the mouse scroll wheel to zoom and drag the blocks to rearrange the diagram. For full IP addresses on the left of the diagram there is a hyperlink to the "project honeypot" website to check for reports from other webmasters.
 
 ## Documentation
